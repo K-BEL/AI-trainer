@@ -1,0 +1,146 @@
+from __future__ import annotations
+
+import time
+from typing import Any
+
+from ultralytics import YOLO
+
+from .base import ModelBackend
+from .utils import create_run_dir, list_images_from_data, to_jsonable, write_json
+
+
+class UltralyticsBackend(ModelBackend):
+    @property
+    def name(self) -> str:
+        return "ultralytics"
+
+    def train(self, data_config: str, **kwargs: Any) -> dict[str, Any]:
+        model_name = kwargs.get("model_name", "yolov8n")
+        epochs = kwargs.get("epochs", 50)
+        img_size = kwargs.get("img_size", 640)
+        batch = kwargs.get("batch", 16)
+        device = kwargs.get("device", "cuda")
+        cache = kwargs.get("cache", "ram")
+        run_name = kwargs.get("run_name")
+        runs_root = kwargs.get("runs_root", "runs")
+
+        run_dir = create_run_dir(self.name, run_name=run_name, root=runs_root)
+        model = YOLO(model_name)
+        model.train(
+            data=data_config,
+            epochs=epochs,
+            imgsz=img_size,
+            batch=batch,
+            device=device,
+            cache=cache,
+            project=str(run_dir.parent),
+            name=run_dir.name,
+            exist_ok=True,
+        )
+
+        artifacts = {
+            "backend": self.name,
+            "run_dir": str(run_dir),
+            "best_checkpoint": str(run_dir / "weights" / "best.pt"),
+            "last_checkpoint": str(run_dir / "weights" / "last.pt"),
+        }
+        write_json(artifacts, run_dir / "train_artifacts.json")
+        return artifacts
+
+    def evaluate(
+        self,
+        checkpoint: str | None,
+        data_config: str,
+        split: str = "test",
+        output_dir: str | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        model_ref = checkpoint or kwargs.get("model_name", "yolov8n.pt")
+        model = YOLO(model_ref)
+
+        metrics = model.val(data=data_config, split=split)
+        metrics_dict = {}
+        if hasattr(metrics, "results_dict"):
+            metrics_dict = to_jsonable(metrics.results_dict)
+        elif isinstance(metrics, dict):
+            metrics_dict = to_jsonable(metrics)
+        else:
+            metrics_dict = {"raw_metrics": to_jsonable(metrics)}
+
+        eval_result = {
+            "backend": self.name,
+            "checkpoint": checkpoint,
+            "data": data_config,
+            "split": split,
+            "metrics": metrics_dict,
+        }
+
+        target = self.ensure_output_dir(output_dir)
+        if target:
+            write_json(eval_result, target / "eval_metrics.json")
+        return eval_result
+
+    def benchmark(
+        self,
+        checkpoint: str | None,
+        data_config: str,
+        output_dir: str | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        model_ref = checkpoint or kwargs.get("model_name", "yolov8n.pt")
+        model = YOLO(model_ref)
+        split = kwargs.get("split", "test")
+        warmup = int(kwargs.get("num_warmup", 3))
+        iterations = int(kwargs.get("num_iter", 10))
+        batch_size = int(kwargs.get("batch_size", 1))
+
+        images = list_images_from_data(data_config, split=split, limit=max(iterations, 10) * batch_size)
+        if not images:
+            result = {
+                "backend": self.name,
+                "checkpoint": checkpoint,
+                "warning": "No images found for benchmark split.",
+                "latency_ms_mean": None,
+                "throughput_img_s": None,
+            }
+            target = self.ensure_output_dir(output_dir)
+            if target:
+                write_json(result, target / "benchmark.json")
+            return result
+
+        benchmark_batch = images[: batch_size * iterations]
+        for _ in range(warmup):
+            model.predict(source=benchmark_batch[:batch_size], verbose=False)
+
+        latencies_ms: list[float] = []
+        processed = 0
+        cursor = 0
+        for _ in range(iterations):
+            batch = benchmark_batch[cursor : cursor + batch_size]
+            if len(batch) < batch_size:
+                batch = benchmark_batch[:batch_size]
+            cursor += batch_size
+
+            t0 = time.perf_counter()
+            model.predict(source=batch, verbose=False)
+            elapsed = (time.perf_counter() - t0) * 1000
+            latencies_ms.append(elapsed)
+            processed += len(batch)
+
+        mean_latency = sum(latencies_ms) / len(latencies_ms)
+        throughput = (processed / sum(latencies_ms)) * 1000 if latencies_ms else 0.0
+        result = {
+            "backend": self.name,
+            "checkpoint": checkpoint,
+            "iterations": iterations,
+            "batch_size": batch_size,
+            "latency_ms_mean": round(mean_latency, 3),
+            "latency_ms_min": round(min(latencies_ms), 3),
+            "latency_ms_max": round(max(latencies_ms), 3),
+            "throughput_img_s": round(throughput, 3),
+        }
+
+        target = self.ensure_output_dir(output_dir)
+        if target:
+            write_json(result, target / "benchmark.json")
+        return result

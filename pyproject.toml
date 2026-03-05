@@ -11,7 +11,7 @@ authors = [
 ]
 license = { text = "MIT" }
 readme = "README.md"
-requires-python = "==3.11.*"
+requires-python = ">=3.11,<3.13"
 keywords = ["AI", "machine learning", "model training", "custom datasets"]
 dependencies = [
     "click",
@@ -30,7 +30,7 @@ dependencies = [
 dev = ["ruff"]
 
 [project.scripts]
-siin-trainer = "siin_trainer:cli.main"
+siin-trainer = "trainer.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

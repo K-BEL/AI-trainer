@@ -1,5 +1,9 @@
-from lgg import logger
 import click
+from lgg import logger
+
+from .backend.base import BackendError
+from .backend.registry import get_backend, registry
+from .backend.utils import create_run_dir, write_json
 
 
 @click.group(invoke_without_command=True)
@@ -311,7 +315,7 @@ def train_ultralytics(data, model, epochs, img_size, batch, device, cache):
     from .models.train_ultralytics import train_ultralytics_model
 
     try:
-        train_ultralytics_model(
+        artifacts = train_ultralytics_model(
             data_path=data,
             model_name=model,
             epochs=epochs,
@@ -320,7 +324,7 @@ def train_ultralytics(data, model, epochs, img_size, batch, device, cache):
             device=device,
             cache=cache,
         )
-        logger.info("Model training completed successfully.")
+        logger.info(f"Model training completed successfully. Run dir: {artifacts.get('run_dir')}")
     except FileNotFoundError as e:
         logger.error(f"FileNotFoundError: {e}", exc_info=True)
     except Exception as e:
@@ -436,7 +440,7 @@ def train_rfdetr(data, model, epochs, batch_size, device, resume):
     from .models.train_rfdetr import train_rfdetr_model
 
     try:
-        train_rfdetr_model(
+        artifacts = train_rfdetr_model(
             data_path=data,
             model_name=model,
             epochs=epochs,
@@ -444,9 +448,245 @@ def train_rfdetr(data, model, epochs, batch_size, device, resume):
             device=device,
             resume=resume,
         )
-        logger.info("RF-DETR model training completed successfully.")
+        logger.info(
+            f"RF-DETR model training completed successfully. Run dir: {artifacts.get('run_dir')}"
+        )
     except FileNotFoundError as e:
         logger.error(f"FileNotFoundError: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}", exc_info=True)
+
+
+def _resolve_backend(backend: str, custom_backend_type: str | None) -> str:
+    if backend != "custom":
+        return backend
+    if not custom_backend_type:
+        raise click.BadParameter("--custom-backend-type is required when --backend custom is used.")
+    return custom_backend_type
+
+
+@main.command(name="eval")
+@click.option(
+    "--backend",
+    type=click.Choice(registry.available() + ["custom"], case_sensitive=False),
+    required=True,
+    help="Backend to use for evaluation.",
+)
+@click.option(
+    "--custom-backend-type",
+    type=str,
+    required=False,
+    help="When backend=custom, select the concrete backend type (e.g. ultralytics or rfdetr).",
+)
+@click.option(
+    "--checkpoint",
+    type=click.Path(exists=True, file_okay=True),
+    required=False,
+    help="Path to model checkpoint/weights.",
+)
+@click.option(
+    "--data",
+    type=click.Path(exists=True, file_okay=True),
+    required=True,
+    help="Path to dataset config/data file.",
+)
+@click.option("--split", type=str, default="test", help="Dataset split to evaluate. Defaults to test.")
+@click.option(
+    "--model",
+    type=str,
+    required=False,
+    help="Optional model name used by backends that require model family instantiation.",
+)
+@click.option(
+    "--output",
+    type=click.Path(writable=True),
+    required=False,
+    help="Optional path to write eval JSON. If omitted, writes to runs/<backend>/<run>/eval_metrics.json.",
+)
+def evaluate_model(backend, custom_backend_type, checkpoint, data, split, model, output):
+    """Evaluate a trained model and write metrics."""
+    try:
+        backend_name = _resolve_backend(backend, custom_backend_type)
+        backend_impl = get_backend(backend_name)
+        output_dir = None
+        output_file = None
+        if output:
+            if str(output).lower().endswith(".json"):
+                from pathlib import Path
+
+                output_file = Path(output)
+                output_dir = str(output_file.parent)
+            else:
+                output_dir = output
+        else:
+            output_dir = str(create_run_dir(backend_name, run_name="eval"))
+
+        result = backend_impl.evaluate(
+            checkpoint=checkpoint,
+            data_config=data,
+            split=split,
+            output_dir=output_dir,
+            model_name=model,
+        )
+
+        if output_file:
+            write_json(result, output_file)
+            logger.info(f"Evaluation completed successfully. Metrics written to: {output_file}")
+        else:
+            logger.info(f"Evaluation completed successfully. Metrics dir: {output_dir}")
+    except BackendError as e:
+        logger.error(f"Backend error: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}", exc_info=True)
+
+
+@main.command()
+@click.option(
+    "--backend",
+    type=click.Choice(registry.available() + ["custom"], case_sensitive=False),
+    required=True,
+    help="Backend to use for benchmarking.",
+)
+@click.option(
+    "--custom-backend-type",
+    type=str,
+    required=False,
+    help="When backend=custom, select the concrete backend type (e.g. ultralytics or rfdetr).",
+)
+@click.option(
+    "--checkpoint",
+    type=click.Path(exists=True, file_okay=True),
+    required=False,
+    help="Path to model checkpoint/weights.",
+)
+@click.option(
+    "--data",
+    type=click.Path(exists=True, file_okay=True),
+    required=True,
+    help="Path to dataset config/data file.",
+)
+@click.option("--split", type=str, default="test", help="Dataset split to benchmark. Defaults to test.")
+@click.option("--batch-size", type=int, default=1, help="Benchmark batch size.")
+@click.option("--num-warmup", type=int, default=3, help="Warmup iterations.")
+@click.option("--num-iter", type=int, default=10, help="Benchmark iterations.")
+@click.option(
+    "--model",
+    type=str,
+    required=False,
+    help="Optional model name used by backends that require model family instantiation.",
+)
+@click.option(
+    "--output",
+    type=click.Path(writable=True),
+    required=False,
+    help="Optional path to write benchmark JSON. If omitted, writes to runs/<backend>/<run>/benchmark.json.",
+)
+def benchmark(backend, custom_backend_type, checkpoint, data, split, batch_size, num_warmup, num_iter, model, output):
+    """Benchmark model inference throughput and latency."""
+    try:
+        backend_name = _resolve_backend(backend, custom_backend_type)
+        backend_impl = get_backend(backend_name)
+        output_dir = None
+        output_file = None
+        if output:
+            if str(output).lower().endswith(".json"):
+                from pathlib import Path
+
+                output_file = Path(output)
+                output_dir = str(output_file.parent)
+            else:
+                output_dir = output
+        else:
+            output_dir = str(create_run_dir(backend_name, run_name="benchmark"))
+
+        result = backend_impl.benchmark(
+            checkpoint=checkpoint,
+            data_config=data,
+            output_dir=output_dir,
+            split=split,
+            batch_size=batch_size,
+            num_warmup=num_warmup,
+            num_iter=num_iter,
+            model_name=model,
+        )
+
+        if output_file:
+            write_json(result, output_file)
+            logger.info(f"Benchmark completed successfully. Metrics written to: {output_file}")
+        else:
+            logger.info(f"Benchmark completed successfully. Metrics dir: {output_dir}")
+    except BackendError as e:
+        logger.error(f"Backend error: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}", exc_info=True)
+
+
+@main.command()
+@click.option(
+    "--config",
+    type=click.Path(exists=True, file_okay=True),
+    required=True,
+    help="Experiment config YAML path.",
+)
+def run(config):
+    """
+    Run a full experiment from config (train + optional eval/benchmark).
+    """
+    import yaml
+    from pathlib import Path
+
+    try:
+        with open(config, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+
+        backend_name = cfg.get("backend")
+        data_path = cfg.get("data")
+        if not backend_name or not data_path:
+            raise ValueError("Config must include at least 'backend' and 'data'.")
+
+        backend_impl = get_backend(backend_name)
+        train_cfg = cfg.get("train", {})
+        if cfg.get("model") and "model_name" not in train_cfg:
+            train_cfg["model_name"] = cfg["model"]
+        if cfg.get("run_name") and "run_name" not in train_cfg:
+            train_cfg["run_name"] = cfg["run_name"]
+
+        train_result = backend_impl.train(data_config=data_path, **train_cfg)
+        run_dir = Path(train_result.get("run_dir", create_run_dir(backend_name)))
+        write_json(train_result, run_dir / "train_artifacts.json")
+
+        with open(run_dir / "config.yaml", "w", encoding="utf-8") as f:
+            yaml.safe_dump(cfg, f, sort_keys=False)
+
+        checkpoint = cfg.get("checkpoint") or train_result.get("best_checkpoint")
+        if cfg.get("run_eval", True):
+            eval_cfg = cfg.get("eval", {})
+            eval_result = backend_impl.evaluate(
+                checkpoint=checkpoint,
+                data_config=data_path,
+                split=eval_cfg.get("split", "test"),
+                output_dir=str(run_dir),
+                model_name=cfg.get("model"),
+            )
+            write_json(eval_result, run_dir / "eval_metrics.json")
+
+        if cfg.get("benchmark", False):
+            bench_cfg = cfg.get("benchmark_config", {})
+            benchmark_result = backend_impl.benchmark(
+                checkpoint=checkpoint,
+                data_config=data_path,
+                output_dir=str(run_dir),
+                split=bench_cfg.get("split", "test"),
+                batch_size=bench_cfg.get("batch_size", 1),
+                num_warmup=bench_cfg.get("num_warmup", 3),
+                num_iter=bench_cfg.get("num_iter", 10),
+                model_name=cfg.get("model"),
+            )
+            write_json(benchmark_result, run_dir / "benchmark.json")
+
+        logger.info(f"Experiment completed successfully. Run dir: {run_dir}")
+    except BackendError as e:
+        logger.error(f"Backend error: {e}", exc_info=True)
     except Exception as e:
         logger.error(f"Unexpected error: {e}", exc_info=True)
 

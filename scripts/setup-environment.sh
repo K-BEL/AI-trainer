@@ -1,36 +1,68 @@
-#!/bin/bash
-set -e 
+#!/usr/bin/env bash
+set -euo pipefail
 
-cd "$(dirname "$0")/.."
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
 
-# Ensure this is an ubuntu system
-if [ ! -f /etc/lsb-release ]; then
-    echo "This script is intended for Ubuntu systems only."
-    exit 1
+PYTHON_VERSION_FILE=".python-version"
+DEFAULT_PYTHON_VERSION="3.12"
+if [[ -f "$PYTHON_VERSION_FILE" ]]; then
+  PYTHON_VERSION="$(tr -d '[:space:]' < "$PYTHON_VERSION_FILE")"
+else
+  PYTHON_VERSION="$DEFAULT_PYTHON_VERSION"
 fi
 
-# Update package list
-export DEBIAN_FRONTEND=noninteractive
-sudo apt update -y
+if [[ -z "$PYTHON_VERSION" ]]; then
+  PYTHON_VERSION="$DEFAULT_PYTHON_VERSION"
+fi
 
-# Install UV
-curl -LsSf https://astral.sh/uv/install.sh | sh
+echo "==> Project root: $ROOT_DIR"
+echo "==> Target Python version: $PYTHON_VERSION"
 
-# Install Python 3.11
-uv python install 3.11
+if ! command -v curl >/dev/null 2>&1; then
+  echo "ERROR: curl is required."
+  exit 1
+fi
 
-# Create a virtual environment
-uv venv --python 3.11
+if ! command -v uv >/dev/null 2>&1; then
+  echo "==> Installing uv..."
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  if [[ -d "$HOME/.local/bin" ]]; then
+    export PATH="$HOME/.local/bin:$PATH"
+  fi
+fi
 
-# Install required packages
-uv sync
+if ! command -v uv >/dev/null 2>&1; then
+  echo "ERROR: uv installation failed or uv is not in PATH."
+  echo "Add ~/.local/bin to PATH and run this script again."
+  exit 1
+fi
 
-# Enable the virtual environment
+echo "==> Installing Python $PYTHON_VERSION with uv..."
+uv python install "$PYTHON_VERSION"
+
+echo "==> Creating/updating virtual environment..."
+uv venv --python "$PYTHON_VERSION" .venv
+
+echo "==> Syncing project dependencies..."
+uv sync --python .venv/bin/python
+
 # shellcheck disable=SC1091
 source ".venv/bin/activate"
 
-# Enable auto-completion for click
-echo 'eval "$(_SIIN_TRAINER_COMPLETE=bash_source siin-trainer)"' >> ~/.bashrc
+echo "==> Installing package in editable mode..."
+python -m pip install -e .
 
-# Enable WandB
-yolo settings wandb=True
+COMPLETION_LINE='eval "$(_SIIN_TRAINER_COMPLETE=bash_source siin-trainer)"'
+if [[ -f "$HOME/.bashrc" ]]; then
+  if ! grep -Fq "$COMPLETION_LINE" "$HOME/.bashrc"; then
+    echo "$COMPLETION_LINE" >> "$HOME/.bashrc"
+    echo "==> Added CLI autocompletion to ~/.bashrc"
+  fi
+fi
+
+echo
+echo "Setup complete."
+echo "Activate env: source .venv/bin/activate"
+echo "Check CLI: siin-trainer --help"
+echo "Optional: wandb login"
