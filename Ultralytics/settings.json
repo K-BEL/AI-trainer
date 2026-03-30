@@ -1,0 +1,21 @@
+{
+  "settings_version": "0.0.6",
+  "datasets_dir": "/Users/kirihata/Desktop/AI-trainer/datasets",
+  "weights_dir": "/Users/kirihata/Desktop/AI-trainer/weights",
+  "runs_dir": "/Users/kirihata/Desktop/AI-trainer/runs",
+  "uuid": "d14e041ff6d56a7cd172ec29c8866092e54d1767917c1b51766ed98f2ce3a65d",
+  "sync": true,
+  "api_key": "",
+  "openai_api_key": "",
+  "clearml": true,
+  "comet": true,
+  "dvc": true,
+  "hub": true,
+  "mlflow": true,
+  "neptune": true,
+  "raytune": true,
+  "tensorboard": false,
+  "wandb": false,
+  "vscode_msg": true,
+  "openvino_msg": true
+}

@@ -1,9 +1,39 @@
+import os
+import tempfile
+from pathlib import Path
+
 import click
 from lgg import logger
 
 from .backend.base import BackendError
 from .backend.registry import get_backend, registry
 from .backend.utils import create_run_dir, write_json
+
+
+def _is_writable_dir(path: Path) -> bool:
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        test_file = path / ".write_test"
+        test_file.write_text("ok", encoding="utf-8")
+        test_file.unlink()
+        return True
+    except Exception:
+        return False
+
+
+def _configure_runtime_cache_dirs() -> None:
+    home_cache = Path.home() / ".cache"
+    cache_root = home_cache if _is_writable_dir(home_cache) else Path.cwd() / ".cache"
+    if not _is_writable_dir(cache_root):
+        cache_root = Path(tempfile.gettempdir()) / "siin-trainer-cache"
+        cache_root.mkdir(parents=True, exist_ok=True)
+
+    os.environ.setdefault("XDG_CACHE_HOME", str(cache_root))
+    os.environ.setdefault("MPLCONFIGDIR", str(cache_root / "matplotlib"))
+    os.environ.setdefault("YOLO_CONFIG_DIR", str(cache_root / "ultralytics"))
+
+
+_configure_runtime_cache_dirs()
 
 
 @click.group(invoke_without_command=True)

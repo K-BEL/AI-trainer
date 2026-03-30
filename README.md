@@ -9,6 +9,7 @@ Library to train and evaluate AI vision models with a unified CLI.
 - Internet access for dependency/model downloads
 - Optional GPU/CUDA setup for faster training/inference
 - Optional Weights & Biases account (`wandb`) for experiment tracking
+- ONNX export dependencies are excluded from default install
 
 ## Setup
 
@@ -24,9 +25,15 @@ What the script does:
 
 - Installs `uv` if missing
 - Installs Python version from `.python-version`
-- Creates `.venv`
+- Recreates `.venv` in a clean state
 - Installs and syncs dependencies
 - Installs the package in editable mode
+
+Notes:
+
+- The script intentionally installs `rfdetr[metrics]` (without `onnxexport`) to avoid `onnxsim` CMake build issues on some systems.
+- You can activate from any directory with:
+  - `source /absolute/path/to/AI-trainer/.venv/bin/activate`
 
 ### Windows PowerShell
 
@@ -183,3 +190,6 @@ Typical files:
   - use Python `3.11` or `3.12` (`python --version`)
 - RF-DETR eval/benchmark backend errors:
   - confirm compatible `rfdetr` package is installed
+- Matplotlib/Ultralytics cache warnings:
+  - CLI now auto-selects writable cache directories (`XDG_CACHE_HOME`, `MPLCONFIGDIR`, `YOLO_CONFIG_DIR`)
+  - first run may still take extra time while font/cache files are initialized

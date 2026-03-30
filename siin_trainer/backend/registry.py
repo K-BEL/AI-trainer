@@ -3,8 +3,6 @@ from __future__ import annotations
 from typing import Callable
 
 from .base import BackendError, ModelBackend
-from .rfdetr_backend import RFDetrBackend
-from .ultralytics_backend import UltralyticsBackend
 
 BackendFactory = Callable[[], ModelBackend]
 
@@ -28,8 +26,22 @@ class BackendRegistry:
 
 
 registry = BackendRegistry()
-registry.register("ultralytics", UltralyticsBackend)
-registry.register("rfdetr", RFDetrBackend)
+
+
+def _create_ultralytics_backend() -> ModelBackend:
+    from .ultralytics_backend import UltralyticsBackend
+
+    return UltralyticsBackend()
+
+
+def _create_rfdetr_backend() -> ModelBackend:
+    from .rfdetr_backend import RFDetrBackend
+
+    return RFDetrBackend()
+
+
+registry.register("ultralytics", _create_ultralytics_backend)
+registry.register("rfdetr", _create_rfdetr_backend)
 
 
 def get_backend(name: str) -> ModelBackend:

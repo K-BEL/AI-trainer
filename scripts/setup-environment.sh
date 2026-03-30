@@ -42,16 +42,21 @@ echo "==> Installing Python $PYTHON_VERSION with uv..."
 uv python install "$PYTHON_VERSION"
 
 echo "==> Creating/updating virtual environment..."
-uv venv --python "$PYTHON_VERSION" .venv
+uv venv --python "$PYTHON_VERSION" --clear --seed .venv
+
+VENV_PYTHON="$ROOT_DIR/.venv/bin/python"
+VENV_ACTIVATE="$ROOT_DIR/.venv/bin/activate"
+
+if ! "$VENV_PYTHON" -m pip --version >/dev/null 2>&1; then
+  echo "==> Bootstrapping pip in virtual environment..."
+  "$VENV_PYTHON" -m ensurepip --upgrade
+fi
 
 echo "==> Syncing project dependencies..."
-uv sync --python .venv/bin/python
-
-# shellcheck disable=SC1091
-source ".venv/bin/activate"
+uv sync --python "$VENV_PYTHON"
 
 echo "==> Installing package in editable mode..."
-python -m pip install -e .
+"$VENV_PYTHON" -m pip install -e .
 
 COMPLETION_LINE='eval "$(_SIIN_TRAINER_COMPLETE=bash_source siin-trainer)"'
 if [[ -f "$HOME/.bashrc" ]]; then
@@ -63,6 +68,6 @@ fi
 
 echo
 echo "Setup complete."
-echo "Activate env: source .venv/bin/activate"
+echo "Activate env: source $VENV_ACTIVATE"
 echo "Check CLI: siin-trainer --help"
 echo "Optional: wandb login"
