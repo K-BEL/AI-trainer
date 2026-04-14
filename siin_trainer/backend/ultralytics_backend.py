@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 from typing import Any
 
 import torch
@@ -108,7 +109,20 @@ class UltralyticsBackend(ModelBackend):
         model_ref = checkpoint or kwargs.get("model_name", "yolov8n.pt")
         model = YOLO(model_ref)
 
-        metrics = model.val(data=data_config, split=split)
+        import yaml
+        with Path(data_config).open("r", encoding="utf-8") as f:
+            data_dict = yaml.safe_load(f) or {}
+
+        actual_split = split
+        if split not in data_dict:
+            if "val" in data_dict:
+                logger.warning(f"Split {split!r} not found in {data_config}; falling back to 'val'.")
+                actual_split = "val"
+            elif "train" in data_dict:
+                logger.warning(f"Split {split!r} not found in {data_config}; falling back to 'train'.")
+                actual_split = "train"
+
+        metrics = model.val(data=data_config, split=actual_split)
         metrics_dict = {}
         if hasattr(metrics, "results_dict"):
             metrics_dict = to_jsonable(metrics.results_dict)
