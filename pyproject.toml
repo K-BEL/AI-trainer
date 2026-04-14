@@ -24,6 +24,7 @@ dependencies = [
     "wandb>=0.21.0",
     "rfdetr[metrics]>=1.2.1",
     "clip",
+    "rich",
 ]
 
 [project.optional-dependencies]

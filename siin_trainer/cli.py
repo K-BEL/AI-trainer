@@ -4,10 +4,17 @@ from pathlib import Path
 
 import click
 from lgg import logger
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.logging import RichHandler
+import logging
 
 from .backend.base import BackendError
 from .backend.registry import get_backend, registry
 from .backend.utils import create_run_dir, write_json
+
+console = Console()
 
 
 def _is_writable_dir(path: Path) -> bool:
@@ -41,9 +48,16 @@ _configure_runtime_cache_dirs()
 def main(ctx):
     """Entry point for the Siin Trainer CLI."""
     if ctx.invoked_subcommand is None:
-        logger.info("Welcome to Siin Trainer CLI!")
+        console.print(
+            Panel.fit(
+                "[bold blue]Siin Trainer CLI[/bold blue]\n[italic white]Unified AI Vision Training & Evaluation[/italic white]",
+                border_style="cyan",
+            )
+        )
+        console.print("\nUse [bold cyan]siin-trainer --help[/bold cyan] to see available commands.\n")
     else:
-        logger.info(f"Running subcommand: {ctx.invoked_subcommand}")
+        # Optional: header for subcommands
+        pass
 
 
 @main.command()
@@ -354,7 +368,14 @@ def train_ultralytics(data, model, epochs, img_size, batch, device, cache):
             device=device,
             cache=cache,
         )
-        logger.info(f"Model training completed successfully. Run dir: {artifacts.get('run_dir')}")
+        console.print(
+            Panel(
+                f"[bold green]✓[/bold green] Ultralytics training completed successfully!\n"
+                f"Run directory: [cyan]{artifacts.get('run_dir')}[/cyan]",
+                border_style="green",
+                title="Training Success",
+            )
+        )
     except FileNotFoundError as e:
         logger.error(f"FileNotFoundError: {e}", exc_info=True)
     except Exception as e:
@@ -478,8 +499,13 @@ def train_rfdetr(data, model, epochs, batch_size, device, resume):
             device=device,
             resume=resume,
         )
-        logger.info(
-            f"RF-DETR model training completed successfully. Run dir: {artifacts.get('run_dir')}"
+        console.print(
+            Panel(
+                f"[bold green]✓[/bold green] RF-DETR training completed successfully!\n"
+                f"Run directory: [cyan]{artifacts.get('run_dir')}[/cyan]",
+                border_style="green",
+                title="Training Success",
+            )
         )
     except FileNotFoundError as e:
         logger.error(f"FileNotFoundError: {e}", exc_info=True)
@@ -561,9 +587,26 @@ def evaluate_model(backend, custom_backend_type, checkpoint, data, split, model,
 
         if output_file:
             write_json(result, output_file)
-            logger.info(f"Evaluation completed successfully. Metrics written to: {output_file}")
+
+        metrics = result.get("metrics", {})
+        if metrics:
+            table = Table(title="Evaluation Metrics", border_style="green")
+            table.add_column("Metric", style="cyan")
+            table.add_column("Value", style="magenta")
+            for k, v in metrics.items():
+                if isinstance(v, float):
+                    table.add_row(k, f"{v:.4f}")
+                else:
+                    table.add_row(k, str(v))
+            console.print(table)
+
+        console.print(
+            f"\n[bold green]✓[/bold green] Evaluation completed successfully."
+        )
+        if output_file:
+            console.print(f"  Metrics written to: [cyan]{output_file}[/cyan]")
         else:
-            logger.info(f"Evaluation completed successfully. Metrics dir: {output_dir}")
+            console.print(f"  Metrics directory: [cyan]{output_dir}[/cyan]")
     except BackendError as e:
         logger.error(f"Backend error: {e}", exc_info=True)
     except Exception as e:
@@ -642,9 +685,26 @@ def benchmark(backend, custom_backend_type, checkpoint, data, split, batch_size,
 
         if output_file:
             write_json(result, output_file)
-            logger.info(f"Benchmark completed successfully. Metrics written to: {output_file}")
+
+        table = Table(title="Inference Benchmark", border_style="yellow")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="magenta")
+        for k, v in result.items():
+            if k in ["backend", "checkpoint"]:
+                continue
+            if isinstance(v, float):
+                table.add_row(k.replace("_", " ").title(), f"{v:.3f}")
+            else:
+                table.add_row(k.replace("_", " ").title(), str(v))
+        console.print(table)
+
+        console.print(
+            f"\n[bold green]✓[/bold green] Benchmark completed successfully."
+        )
+        if output_file:
+            console.print(f"  Results written to: [cyan]{output_file}[/cyan]")
         else:
-            logger.info(f"Benchmark completed successfully. Metrics dir: {output_dir}")
+            console.print(f"  Results directory: [cyan]{output_dir}[/cyan]")
     except BackendError as e:
         logger.error(f"Backend error: {e}", exc_info=True)
     except Exception as e:
@@ -714,7 +774,15 @@ def run(config):
             )
             write_json(benchmark_result, run_dir / "benchmark.json")
 
-        logger.info(f"Experiment completed successfully. Run dir: {run_dir}")
+        console.print(
+            Panel(
+                f"[bold green]✓[/bold green] Experiment completed successfully!\n"
+                f"Run directory: [cyan]{run_dir}[/cyan]",
+                border_style="green",
+                expand=False,
+                title="Experiment Success",
+            )
+        )
     except BackendError as e:
         logger.error(f"Backend error: {e}", exc_info=True)
     except Exception as e:
