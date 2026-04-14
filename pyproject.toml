@@ -25,6 +25,7 @@ dependencies = [
     "rfdetr[metrics]>=1.2.1",
     "clip",
     "rich",
+    "streamlit",
 ]
 
 [project.optional-dependencies]

@@ -829,3 +829,47 @@ def extract_frames(video, output_dir, similarity_threshold):
         logger.error(f"FileNotFoundError: {e}", exc_info=True)
     except Exception as e:
         logger.error(f"Unexpected error: {e}", exc_info=True)
+
+
+@main.command()
+@click.option("--port", type=int, default=8501, help="Port to run the demo on.")
+def demo(port):
+    """Launch a live web demo (Streamlit) to test your model."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    app_path = Path(__file__).parent / "demo_app.py"
+    if not app_path.exists():
+        console.print(f"[bold red]Error:[/bold red] Demo app file not found at {app_path}")
+        return
+
+    console.print(
+        Panel.fit(
+            f"🚀 [bold cyan]Launching Live Demo...[/bold cyan]\n"
+            f"URL: [underline blue]http://localhost:{port}[/underline blue]\n\n"
+            f"[italic white]Press Ctrl+C to stop the demo[/italic white]",
+            border_style="cyan",
+            title="Siin Trainer Demo",
+        )
+    )
+
+    try:
+        # Run streamlit as a module
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "streamlit",
+                "run",
+                str(app_path),
+                "--server.port",
+                str(port),
+                "--server.headless",
+                "true",
+                "--global.developmentMode",
+                "false",
+            ]
+        )
+    except KeyboardInterrupt:
+        console.print("\n[bold yellow]Demo stopped.[/bold yellow]")
