@@ -56,7 +56,16 @@ def list_images_from_data(data_config: str, split: str = "test", limit: int = 50
 
     if split_file.is_file() and split_file.suffix.lower() == ".txt":
         with split_file.open("r", encoding="utf-8") as f:
-            lines = [line.strip() for line in f if line.strip()]
+            lines = []
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                p = Path(line)
+                if not p.is_absolute():
+                    # Resolve relative to the directory containing the .txt file
+                    p = (split_file.parent / p).resolve()
+                lines.append(str(p))
         return lines[:limit]
 
     if split_file.is_dir():
