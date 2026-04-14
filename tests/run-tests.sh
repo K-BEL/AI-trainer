@@ -32,4 +32,4 @@ cd "$(dirname "$0")"
 # siin-trainer download-dataset --url "https://datasets.siin.ai/Barcode/latest/barcode-recognition.zip" --dir ./barcode_recognition_dataset
 
 # Extract frames from video
-siin-trainer extract-frames --video ./test-video.mp4 --output-dir ./extracted-frames --similarity-threshold 0.95
+# siin-trainer extract-frames --video ./test-video.mp4 --output-dir ./extracted-frames --similarity-threshold 0.95

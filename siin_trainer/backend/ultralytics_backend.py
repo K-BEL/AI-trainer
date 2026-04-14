@@ -3,10 +3,50 @@ from __future__ import annotations
 import time
 from typing import Any
 
+import torch
+from lgg import logger
 from ultralytics import YOLO
 
 from .base import ModelBackend
 from .utils import create_run_dir, list_images_from_data, to_jsonable, write_json
+
+
+def _resolve_training_device(requested: str) -> str:
+    """Map CLI/device hints to a device string Ultralytics can use."""
+    raw = (requested or "auto").strip()
+    if not raw:
+        raw = "auto"
+    r = raw.lower()
+    if r == "auto":
+        if torch.cuda.is_available():
+            return "0"
+        if torch.backends.mps.is_available():
+            return "mps"
+        return "cpu"
+    if r in ("cuda", "gpu"):
+        if torch.cuda.is_available():
+            return "0"
+        if torch.backends.mps.is_available():
+            logger.warning("CUDA was requested but is not available; using MPS instead.")
+            return "mps"
+        logger.warning("CUDA was requested but is not available; using CPU instead.")
+        return "cpu"
+    if r == "mps":
+        if torch.backends.mps.is_available():
+            return "mps"
+        logger.warning("MPS was requested but is not available; using CPU instead.")
+        return "cpu"
+    if r in {f"{i}" for i in range(8)} or r.startswith("cuda:"):
+        if torch.cuda.is_available():
+            return raw
+        if torch.backends.mps.is_available():
+            logger.warning(
+                f"GPU device {raw!r} was requested but CUDA is not available; using MPS instead."
+            )
+            return "mps"
+        logger.warning(f"GPU device {raw!r} was requested but CUDA is not available; using CPU instead.")
+        return "cpu"
+    return raw
 
 
 class UltralyticsBackend(ModelBackend):
@@ -19,7 +59,7 @@ class UltralyticsBackend(ModelBackend):
         epochs = kwargs.get("epochs", 50)
         img_size = kwargs.get("img_size", 640)
         batch = kwargs.get("batch", 16)
-        device = kwargs.get("device", "cuda")
+        device = _resolve_training_device(kwargs.get("device", "auto"))
         cache = kwargs.get("cache", "ram")
         run_name = kwargs.get("run_name")
         runs_root = kwargs.get("runs_root", "runs")

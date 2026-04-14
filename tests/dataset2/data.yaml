@@ -1,7 +1,0 @@
-path: ./
-train: ./train.txt
-val: ./val.txt
-test: ./test.txt
-
-nc: 13
-names: ['0', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', '1', '2']

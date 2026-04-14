@@ -317,8 +317,8 @@ def coco_to_yolo(coco_json, output_dir):
 @click.option(
     "--device",
     type=str,
-    default="cuda",
-    help="Device to use for training (e.g., 'cuda', 'cpu'). Defaults to 'cuda'.",
+    default="auto",
+    help="Device: 'auto' (CUDA, else MPS, else CPU), or 'cuda', 'mps', 'cpu', or a GPU index.",
 )
 @click.option(
     "--cache",

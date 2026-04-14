@@ -9,7 +9,7 @@ def train_ultralytics_model(
     epochs: int = 50,
     img_size: int = 640,
     batch=16,
-    device="cuda",
+    device="auto",
     cache="ram",
 ):
     """Train an Ultralytics YOLO model on a custom dataset."""
