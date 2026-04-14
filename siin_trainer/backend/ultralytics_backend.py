@@ -8,6 +8,7 @@ from lgg import logger
 from ultralytics import YOLO
 
 from .base import ModelBackend
+from .ultralytics_mps_workaround import apply_task_aligned_assigner_mps_cpu_fallback
 from .utils import create_run_dir, list_images_from_data, to_jsonable, write_json
 
 
@@ -65,18 +66,27 @@ class UltralyticsBackend(ModelBackend):
         runs_root = kwargs.get("runs_root", "runs")
 
         run_dir = create_run_dir(self.name, run_name=run_name, root=runs_root)
+        if device == "mps":
+            apply_task_aligned_assigner_mps_cpu_fallback()
+
+        train_kw: dict[str, Any] = {
+            "data": data_config,
+            "epochs": epochs,
+            "imgsz": img_size,
+            "batch": batch,
+            "device": device,
+            "cache": cache,
+            "project": str(run_dir.parent),
+            "name": run_dir.name,
+            "exist_ok": True,
+        }
+        if kwargs.get("amp") is not None:
+            train_kw["amp"] = kwargs["amp"]
+        elif device == "mps":
+            train_kw["amp"] = False
+
         model = YOLO(model_name)
-        model.train(
-            data=data_config,
-            epochs=epochs,
-            imgsz=img_size,
-            batch=batch,
-            device=device,
-            cache=cache,
-            project=str(run_dir.parent),
-            name=run_dir.name,
-            exist_ok=True,
-        )
+        model.train(**train_kw)
 
         artifacts = {
             "backend": self.name,
