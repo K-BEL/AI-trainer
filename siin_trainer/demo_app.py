@@ -61,8 +61,15 @@ selected_checkpoint = st.sidebar.selectbox(
 )
 
 st.sidebar.markdown("---")
+st.sidebar.subheader("Inference Settings")
 conf_threshold = st.sidebar.slider("Confidence Threshold", 0.0, 1.0, 0.25, 0.05)
 iou_threshold = st.sidebar.slider("IOU Threshold", 0.0, 1.0, 0.45, 0.05)
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("Visualization Settings")
+show_labels = st.sidebar.checkbox("Show Labels", value=True)
+show_conf = st.sidebar.checkbox("Show Confidence", value=True)
+line_width = st.sidebar.slider("Line Width", 1, 10, 2)
 
 # --- Model Loading ---
 @st.cache_resource
@@ -75,6 +82,20 @@ def load_model(path):
         return None
 
 model = load_model(selected_checkpoint)
+
+# --- Class Filtering ---
+if model:
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Class Filtering")
+    all_classes = list(model.names.values())
+    selected_classes = st.sidebar.multiselect(
+        "Classes to Detect", 
+        all_classes, 
+        default=all_classes
+    )
+    class_ids = [k for k, v in model.names.items() if v in selected_classes]
+else:
+    class_ids = None
 
 # --- Logic ---
 if model:
@@ -108,11 +129,16 @@ if model:
                         source=input_image, 
                         conf=conf_threshold, 
                         iou=iou_threshold,
+                        classes=class_ids,
                         verbose=False
                     )
                     
-                    # Get plotted image
-                    res_plotted = results[0].plot()
+                    # Get plotted image with custom settings
+                    res_plotted = results[0].plot(
+                        labels=show_labels, 
+                        conf=show_conf, 
+                        line_width=line_width
+                    )
                     st.image(res_plotted, caption="Detected Objects", use_container_width=True)
                     
                     # Statistics

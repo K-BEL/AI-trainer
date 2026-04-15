@@ -2,6 +2,8 @@
 
 Library to train and evaluate AI vision models with a unified CLI.
 
+![Live Demo Dashboard](docs/assets/demo.png)
+
 ## Requirements
 
 - Python `3.11` or `3.12`
@@ -118,6 +120,15 @@ Evaluate a trained checkpoint:
 siin-trainer eval --backend ultralytics --checkpoint /path/to/best.pt --data /path/to/data.yaml --split test
 ```
 
+### Performance Example (Detection)
+| Metric | Value |
+| :--- | :--- |
+| **mAP50** | 0.7532 |
+| **mAP50-95** | 0.5217 |
+| **Precision** | 0.7461 |
+| **Recall** | 0.6483 |
+| **Inference Latency** | ~16ms (Apple M4 Pro) |
+
 Evaluate a custom checkpoint with explicit backend type:
 
 ```bash
@@ -137,6 +148,20 @@ Measure latency and throughput:
 ```bash
 siin-trainer benchmark --backend ultralytics --checkpoint /path/to/best.pt --data /path/to/data.yaml --batch-size 1 --num-warmup 3 --num-iter 10
 ```
+
+## 🌐 Live Web Demo
+
+Run a modern, interactive dashboard to test your models with image upload, webcam support, and visualization controls.
+
+```bash
+siin-trainer demo
+```
+
+### Features
+- **Real-time Inference**: Drag and drop images or use your camera.
+- **Visualization Tuning**: Thin out box lines and toggle labels/confidence scores for crowded scenes.
+- **Class Filtering**: Focus detections on specific categories.
+- **Auto-scan**: Automatically detects all trained models in your `runs/` directory.
 
 ## Run full experiment from YAML
 
