@@ -43,6 +43,8 @@ jobs:
     name: "Pro Training (Ubuntu ARM)"
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && github.actor == github.repository_owner
     runs-on: ubuntu-24.04-arm
+    outputs:
+      best_model_path: ${{ steps.locate_model.outputs.best_model }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -80,26 +82,64 @@ jobs:
           BASE_DIR=$(dirname "$BEST_MODEL")
           echo "base_dir=$BASE_DIR" >> $GITHUB_OUTPUT
 
-      - name: Export Model (ONNX & CoreML)
+      - name: Export Model (ONNX)
         run: |
           MODEL_PATH="${{ steps.locate_model.outputs.best_model }}"
-          echo "Exporting $MODEL_PATH..."
+          echo "Exporting $MODEL_PATH to ONNX..."
           yolo export model="$MODEL_PATH" format=onnx
-          yolo export model="$MODEL_PATH" format=coreml
 
       - name: Upload Training Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: trained-models
+          name: trained-models-linux
           path: |
             ${{ steps.locate_model.outputs.best_model }}
             ${{ steps.locate_model.outputs.base_dir }}/best.onnx
-            ${{ steps.locate_model.outputs.base_dir }}/best.mlpackage
 
-  # Job 3: Create Release - Runs after successful Training
+  # Job 3: Export CoreML - Runs on macOS 14 for native support
+  export-coreml:
+    name: "Export CoreML (macOS ARM)"
+    needs: pro-training
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    runs-on: macos-14
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Download Training Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: trained-models-linux
+          path: trained-models
+
+      - name: Install Export Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ultralytics coremltools
+
+      - name: Export Model (CoreML)
+        run: |
+          # Find the model file in the downloaded directory
+          MODEL_PATH=$(find trained-models -name "best.pt" | head -n 1)
+          echo "Exporting $MODEL_PATH to CoreML..."
+          yolo export model="$MODEL_PATH" format=coreml
+
+      - name: Upload CoreML Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trained-model-coreml
+          path: trained-models/best.mlpackage
+
+  # Job 4: Create Release - Runs after both conversions are done
   create-release:
     name: "Automated Release"
-    needs: pro-training
+    needs: [pro-training, export-coreml]
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     permissions:
@@ -119,15 +159,21 @@ jobs:
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "Generated Tag: $TAG"
 
-      - name: Download Artifacts
+      - name: Download Linux Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: trained-models
-          path: models-to-release
+          name: trained-models-linux
+          path: release-assets
 
-      - name: Package CoreML (if directory)
+      - name: Download CoreML Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: trained-model-coreml
+          path: release-assets/best.mlpackage
+
+      - name: Package CoreML
         run: |
-          cd models-to-release
+          cd release-assets
           if [ -d "best.mlpackage" ]; then
             zip -r best_coreml.zip best.mlpackage
           fi
@@ -140,10 +186,15 @@ jobs:
           body: |
             Automated release generated from develop branch.
             Commit: ${{ github.sha }}
+            
+            Multi-platform assets included:
+            - PyTorch (.pt)
+            - ONNX (.onnx)
+            - CoreML (zipped .mlpackage)
           files: |
-            models-to-release/best.pt
-            models-to-release/best.onnx
-            models-to-release/best_coreml.zip
+            release-assets/best.pt
+            release-assets/best.onnx
+            release-assets/best_coreml.zip
           draft: false
           prerelease: false
         env:
