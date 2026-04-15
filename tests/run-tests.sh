@@ -25,22 +25,24 @@ echo "📂 Project Root: $PROJECT_ROOT"
 # Change to project root for consistent pathing
 cd "$PROJECT_ROOT"
 
-DATA_PATH="tests/dataset/data.yaml"
+DATA_PATH="tests/dataset_tiny/data.yaml"
 MODEL="yolov8n"
 
-# 1. Train model (Minimal 1 epoch for testing)
+# 1. Train model (Minimal 1 epoch for testing, optimized for CPU)
 echo "📦 Step 1: Training..."
 "$PYTHON_EXEC" -m siin_trainer.cli train-ultralytics \
     --data "$DATA_PATH" \
     --model "$MODEL" \
     --device "cpu" \
     --epochs 1 \
-    --batch 2
+    --batch 2 \
+    --img-size 320 \
+    --workers 2
 
 # 2. Evaluate model
 echo "📊 Step 2: Evaluating..."
-# Finding the latest trained model weights
-BEST_MODEL=$(ls -t runs/detect/train*/weights/best.pt | head -n 1)
+# Finding the latest trained model weights in the custom runs folder
+BEST_MODEL=$(ls -t runs/ultralytics/run-*/weights/best.pt | head -n 1)
 
 "$PYTHON_EXEC" -m siin_trainer.cli eval \
     --backend ultralytics \
@@ -60,7 +62,7 @@ echo "🖼️ Step 4: Visualizing..."
 "$PYTHON_EXEC" -m siin_trainer.cli visualize-dataset \
     --dataset "tests/dataset" \
     --output "runs/test_visualization" \
-    --n 2
+    --num-samples 2
 
 # 5. Verify Success and Artifacts
 echo "🔍 Step 5: Verifying..."

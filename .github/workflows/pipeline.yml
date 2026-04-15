@@ -62,12 +62,13 @@ jobs:
       - name: Train YOLO Model
         run: |
           siin-trainer train-ultralytics \
-            --data tests/dataset/data.yaml \
+            --data tests/dataset_tiny/data.yaml \
             --model yolov8n \
             --epochs 5 \
-            --img-size 640 \
+            --img-size 320 \
             --batch 8 \
-            --device cpu
+            --device cpu \
+            --workers 2
 
       - name: Locate Best Model
         id: locate_model

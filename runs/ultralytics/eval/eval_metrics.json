@@ -1,13 +1,13 @@
 {
   "backend": "ultralytics",
-  "checkpoint": "runs/ultralytics/run-20260414-221221/weights/best.pt",
-  "data": "tests/dataset/data.yaml",
+  "checkpoint": "runs/ultralytics/run-20260416-004630/weights/best.pt",
+  "data": "tests/dataset_tiny/data.yaml",
   "metrics": {
-    "fitness": 0.544812448072904,
-    "metrics/mAP50(B)": 0.7532232944776841,
-    "metrics/mAP50-95(B)": 0.5216556873612617,
-    "metrics/precision(B)": 0.7461100755063999,
-    "metrics/recall(B)": 0.6482975759604628
+    "fitness": 0.0,
+    "metrics/mAP50(B)": 0.0,
+    "metrics/mAP50-95(B)": 0.0,
+    "metrics/precision(B)": 0.0,
+    "metrics/recall(B)": 0.0
   },
   "split": "test"
 }

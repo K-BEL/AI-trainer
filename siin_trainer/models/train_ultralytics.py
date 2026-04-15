@@ -11,6 +11,7 @@ def train_ultralytics_model(
     batch=16,
     device="auto",
     cache="ram",
+    workers: int = 8,
 ):
     """Train an Ultralytics YOLO model on a custom dataset."""
     backend = get_backend("ultralytics")
@@ -22,4 +23,5 @@ def train_ultralytics_model(
         batch=batch,
         device=device,
         cache=cache,
+        workers=workers,
     )

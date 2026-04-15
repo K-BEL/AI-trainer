@@ -340,7 +340,13 @@ def coco_to_yolo(coco_json, output_dir):
     default="ram",
     help="Cache type to use during training. Defaults to 'ram'.",
 )
-def train_ultralytics(data, model, epochs, img_size, batch, device, cache):
+@click.option(
+    "--workers",
+    type=int,
+    default=8,
+    help="Number of worker threads for data loading (0-8 recommended).",
+)
+def train_ultralytics(data, model, epochs, img_size, batch, device, cache, workers):
     """
     Trains a YOLO model on a custom dataset.
 
@@ -352,6 +358,7 @@ def train_ultralytics(data, model, epochs, img_size, batch, device, cache):
         batch (int): Batch size for training.
         device (str): Device to use for training.
         cache (str): Cache type to use during training.
+        workers (int): Number of worker threads for data loading.
 
     Raises:
         FileNotFoundError: If the dataset YAML file does not exist.
@@ -367,6 +374,7 @@ def train_ultralytics(data, model, epochs, img_size, batch, device, cache):
             batch=batch,
             device=device,
             cache=cache,
+            workers=workers,
         )
         console.print(
             Panel(

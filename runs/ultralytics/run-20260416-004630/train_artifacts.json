@@ -1,0 +1,6 @@
+{
+  "backend": "ultralytics",
+  "best_checkpoint": "runs/ultralytics/run-20260416-004630/weights/best.pt",
+  "last_checkpoint": "runs/ultralytics/run-20260416-004630/weights/last.pt",
+  "run_dir": "runs/ultralytics/run-20260416-004630"
+}

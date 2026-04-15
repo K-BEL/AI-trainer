@@ -1,10 +1,10 @@
 {
   "backend": "ultralytics",
   "batch_size": 1,
-  "checkpoint": "runs/ultralytics/run-20260414-221221/weights/best.pt",
-  "iterations": 10,
-  "latency_ms_max": 19.74,
-  "latency_ms_mean": 16.3,
-  "latency_ms_min": 11.736,
-  "throughput_img_s": 61.348
+  "checkpoint": "runs/ultralytics/run-20260416-004630/weights/best.pt",
+  "iterations": 5,
+  "latency_ms_max": 11.577,
+  "latency_ms_mean": 9.28,
+  "latency_ms_min": 7.654,
+  "throughput_img_s": 107.754
 }
