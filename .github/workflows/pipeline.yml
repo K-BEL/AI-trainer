@@ -1,0 +1,149 @@
+name: Fully Automated Cloud-Native Pipeline
+
+on:
+  pull_request:
+    branches: [ develop ]
+  push:
+    branches: [ develop ]
+
+# Ensure only one run per branch occurs at a time
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Job 1: CI/Test - Runs on Pull Requests
+  ci-test:
+    name: "CI/Test (Ubuntu ARM)"
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Run Placeholder Tests
+        run: |
+          chmod +x tests/run-tests.sh
+          ./tests/run-tests.sh
+
+  # Job 2: Pro Training - Runs on Push to Develop
+  pro-training:
+    name: "Pro Training (Ubuntu ARM)"
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && github.actor == github.repository_owner
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Train YOLO Model
+        run: |
+          siin-trainer train-ultralytics \
+            --data tests/dataset/data.yaml \
+            --model yolov8n \
+            --epochs 5 \
+            --img-size 640 \
+            --batch 8 \
+            --device cpu
+
+      - name: Locate Best Model
+        id: locate_model
+        run: |
+          BEST_MODEL=$(ls -t runs/ultralytics/*/weights/best.pt | head -n 1)
+          echo "best_model=$BEST_MODEL" >> $GITHUB_OUTPUT
+          
+          # Base directory for exports
+          BASE_DIR=$(dirname "$BEST_MODEL")
+          echo "base_dir=$BASE_DIR" >> $GITHUB_OUTPUT
+
+      - name: Export Model (ONNX & CoreML)
+        run: |
+          MODEL_PATH="${{ steps.locate_model.outputs.best_model }}"
+          echo "Exporting $MODEL_PATH..."
+          yolo export model="$MODEL_PATH" format=onnx
+          yolo export model="$MODEL_PATH" format=coreml
+
+      - name: Upload Training Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: trained-models
+          path: |
+            ${{ steps.locate_model.outputs.best_model }}
+            ${{ steps.locate_model.outputs.base_dir }}/best.onnx
+            ${{ steps.locate_model.outputs.base_dir }}/best.mlpackage
+
+  # Job 3: Create Release - Runs after successful Training
+  create-release:
+    name: "Automated Release"
+    needs: pro-training
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate Tag and Release Name
+        id: tag
+        run: |
+          SHA_SHORT=$(git rev-parse --short HEAD)
+          DATE=$(date +'%Y.%m.%d')
+          TAG="v${DATE}-${SHA_SHORT}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Generated Tag: $TAG"
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: trained-models
+          path: models-to-release
+
+      - name: Package CoreML (if directory)
+        run: |
+          cd models-to-release
+          if [ -d "best.mlpackage" ]; then
+            zip -r best_coreml.zip best.mlpackage
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Release ${{ steps.tag.outputs.tag }}
+          body: |
+            Automated release generated from develop branch.
+            Commit: ${{ github.sha }}
+          files: |
+            models-to-release/best.pt
+            models-to-release/best.onnx
+            models-to-release/best_coreml.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
