@@ -873,3 +873,7 @@ def demo(port):
         )
     except KeyboardInterrupt:
         console.print("\n[bold yellow]Demo stopped.[/bold yellow]")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,35 +1,99 @@
 #!/bin/bash
 set -e
 
-cd "$(dirname "$0")"
+# --- Environment Setup ---
+# Find the project root robustly regardless of where the script is called from
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+if [ -z "$SCRIPT_PATH" ]; then
+    SCRIPT_PATH="$0"
+fi
+SCRIPT_DIR="$( cd -- "$( dirname -- "$SCRIPT_PATH" )" &> /dev/null && pwd )"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+export PYTHONPATH="$PROJECT_ROOT"
 
-# Split dataset1
-# siin-trainer split-dataset --dataset ./dataset1 --val 0.25 --test 0.25 --seed 1
+# Determine the python to use (prefer venv if it exists)
+if [[ -f "$PROJECT_ROOT/.venv/bin/python" ]]; then
+    PYTHON_EXEC="$PROJECT_ROOT/.venv/bin/python"
+else
+    PYTHON_EXEC="python3"
+fi
 
-# # Merge dataset1 & dataset2
-# siin-trainer merge-datasets --datasets ./dataset1  --datasets  ./dataset2 --output ./merged_dataset
+echo "🚀 Starting End-to-End Pipeline Test..."
+echo "🐍 Using Python: $PYTHON_EXEC"
+echo "📂 Project Root: $PROJECT_ROOT"
 
-# # Visualize dataset1
-# siin-trainer visualize-dataset --dataset ./dataset1 --output ./dataset1_visualization
+# Change to project root for consistent pathing
+cd "$PROJECT_ROOT"
 
-# # Filter dataset1
-# siin-trainer filter-objects --dataset ./dataset1 --objects "0" --objects "8" --output ./dataset1_filtered
-# # # Visualize filtered dataset1
-# siin-trainer visualize-dataset --dataset ./dataset1_filtered --output ./dataset1_filtered_visualization
+DATA_PATH="tests/dataset/data.yaml"
+MODEL="yolov8n"
 
-# # Convert dataset1 to COCO format
-# siin-trainer yolo-to-coco --dataset ./dataset1 --output-json ./coco-dataset/here.json
+# 1. Train model (Minimal 1 epoch for testing)
+echo "📦 Step 1: Training..."
+"$PYTHON_EXEC" -m siin_trainer.cli train-ultralytics \
+    --data "$DATA_PATH" \
+    --model "$MODEL" \
+    --device "cpu" \
+    --epochs 1 \
+    --batch 2
 
-# # Convert dataset1 to YOLO format
-# siin-trainer coco-to-yolo --coco-json ./coco-dataset/here.json --output-dir ./yolo-dataset
-# # # Visualize YOLO dataset
-# siin-trainer visualize-dataset --dataset ./yolo-dataset --output ./yolo_dataset_visualization
+# 2. Evaluate model
+echo "📊 Step 2: Evaluating..."
+# Finding the latest trained model weights
+BEST_MODEL=$(ls -t runs/detect/train*/weights/best.pt | head -n 1)
 
-# # Train model on dataset1
-# siin-trainer train-ultralytics --data ./dataset1/data.yaml --model yolov8n.pt --device "cpu" --epochs 1 --batch 2
+"$PYTHON_EXEC" -m siin_trainer.cli eval \
+    --backend ultralytics \
+    --checkpoint "$BEST_MODEL" \
+    --data "$DATA_PATH"
 
-# # Download a dataset
-# siin-trainer download-dataset --url "https://datasets.siin.ai/Barcode/latest/barcode-recognition.zip" --dir ./barcode_recognition_dataset
+# 3. Benchmark model
+echo "⏱️ Step 3: Benchmarking..."
+"$PYTHON_EXEC" -m siin_trainer.cli benchmark \
+    --backend ultralytics \
+    --checkpoint "$BEST_MODEL" \
+    --data "$DATA_PATH" \
+    --num-iter 5
 
-# Extract frames from video
-# siin-trainer extract-frames --video ./test-video.mp4 --output-dir ./extracted-frames --similarity-threshold 0.95
+# 4. Visualize dataset
+echo "🖼️ Step 4: Visualizing..."
+"$PYTHON_EXEC" -m siin_trainer.cli visualize-dataset \
+    --dataset "tests/dataset" \
+    --output "runs/test_visualization" \
+    --n 2
+
+# 5. Verify Success and Artifacts
+echo "🔍 Step 5: Verifying..."
+if [[ -f "$BEST_MODEL" ]]; then
+    echo "✅ Success: Model checkpoint found at $BEST_MODEL"
+else
+    echo "❌ Error: Model checkpoint missing."
+    exit 1
+fi
+
+EVAL_DIR="runs/ultralytics/eval"
+BENCH_DIR="runs/ultralytics/benchmark"
+VIS_DIR="runs/test_visualization"
+
+if [[ -f "$EVAL_DIR/eval_metrics.json" ]]; then
+    echo "✅ Success: Evaluation metrics found."
+else
+    echo "❌ Error: eval_metrics.json missing in $EVAL_DIR."
+    exit 1
+fi
+
+if [[ -f "$BENCH_DIR/benchmark.json" ]]; then
+    echo "✅ Success: Benchmark report found."
+else
+    echo "❌ Error: benchmark.json missing in $BENCH_DIR."
+    exit 1
+fi
+
+if [[ -d "$VIS_DIR" ]]; then
+    echo "✅ Success: Visualization output directory found."
+else
+    echo "❌ Error: Visualization directory missing."
+    exit 1
+fi
+
+echo "✨ All end-to-end tests passed successfully!"
