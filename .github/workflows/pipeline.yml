@@ -66,11 +66,11 @@ jobs:
           siin-trainer train-ultralytics \
             --data tests/dataset_tiny/data.yaml \
             --model yolov8n \
-            --epochs 100 \
-            --img-size 320 \
+            --epochs 30 \
+            --img-size 640 \
             --batch 8 \
             --device cpu \
-            --workers 2
+            --workers 4
 
       - name: Locate Best Model
         id: locate_model

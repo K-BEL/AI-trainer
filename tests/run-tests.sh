@@ -28,15 +28,15 @@ cd "$PROJECT_ROOT"
 DATA_PATH="tests/dataset_tiny/data.yaml"
 MODEL="yolov8n"
 
-# 1. Train model (Minimal 1 epoch for testing, optimized for CPU)
+# 1. Train model (Minimal 10 epochs for testing, higher res)
 echo "📦 Step 1: Training..."
 "$PYTHON_EXEC" -m siin_trainer.cli train-ultralytics \
     --data "$DATA_PATH" \
     --model "$MODEL" \
     --device "cpu" \
-    --epochs 1 \
+    --epochs 10 \
     --batch 2 \
-    --img-size 320 \
+    --img-size 640 \
     --workers 2
 
 # 2. Evaluate model

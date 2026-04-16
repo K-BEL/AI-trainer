@@ -10,6 +10,5 @@ names:
 - '8'
 - '9'
 nc: 10
-train: images
-val: images
-# Note: we use 'images' for val too since this is only for a tiny E2E test
+train: train/images
+val: val/images
