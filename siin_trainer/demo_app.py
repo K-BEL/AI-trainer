@@ -1,11 +1,16 @@
 import streamlit as st
 import PIL.Image
 import numpy as np
+import pathlib
 from pathlib import Path
 from ultralytics import YOLO
 import torch
 import tempfile
 import os
+
+# Platform compatibility fix for loading Windows-trained models on Mac/Linux
+if os.name != 'nt':
+    pathlib.WindowsPath = pathlib.PosixPath
 
 # --- UI Config ---
 st.set_page_config(
@@ -145,7 +150,7 @@ if model:
                     input_image = PIL.Image.open(camera_image)
             
             if input_image:
-                st.image(input_image, use_container_width=True)
+                st.image(input_image, width='stretch')
 
         with col2:
             st.subheader("Predictions")
@@ -165,7 +170,7 @@ if model:
                         conf=show_conf, 
                         line_width=line_width
                     )
-                    st.image(res_plotted, caption="Detected Objects", use_container_width=True)
+                    st.image(res_plotted, caption="Detected Objects", width='stretch')
                     
                     # Statistics
                     boxes = results[0].boxes
