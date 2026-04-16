@@ -64,7 +64,7 @@ class UltralyticsBackend(ModelBackend):
         device = _resolve_training_device(kwargs.get("device", "auto"))
         cache = kwargs.get("cache", "ram")
         run_name = kwargs.get("run_name")
-        runs_root = kwargs.get("runs_root", "runs")
+        runs_root = Path(kwargs.get("runs_root", Path.cwd() / "runs")).resolve()
 
         run_dir = create_run_dir(self.name, run_name=run_name, root=runs_root)
         if device == "mps":
