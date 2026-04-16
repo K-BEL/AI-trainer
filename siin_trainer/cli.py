@@ -10,6 +10,7 @@ from rich.table import Table
 from rich.logging import RichHandler
 import logging
 
+from .backend.cleanup import cleanup_old_runs
 from .backend.base import BackendError
 from .backend.registry import get_backend, registry
 from .backend.utils import create_run_dir, write_json
@@ -379,11 +380,16 @@ def train_ultralytics(data, model, epochs, img_size, batch, device, cache, worke
         console.print(
             Panel(
                 f"[bold green]✓[/bold green] Ultralytics training completed successfully!\n"
-                f"Run directory: [cyan]{artifacts.get('run_dir')}[/cyan]",
+                f"Run directory: [cyan]{artifacts.get('run_dir')}[/cyan]\n"
+                f"[dim]Note: Automated cleanup active (kept latest 3 runs)[/dim]",
                 border_style="green",
                 title="Training Success",
             )
         )
+        
+        # Cleanup old runs (keep latest 3)
+        cleanup_old_runs()
+        
     except FileNotFoundError as e:
         logger.error(f"FileNotFoundError: {e}", exc_info=True)
     except Exception as e:
@@ -510,11 +516,16 @@ def train_rfdetr(data, model, epochs, batch_size, device, resume):
         console.print(
             Panel(
                 f"[bold green]✓[/bold green] RF-DETR training completed successfully!\n"
-                f"Run directory: [cyan]{artifacts.get('run_dir')}[/cyan]",
+                f"Run directory: [cyan]{artifacts.get('run_dir')}[/cyan]\n"
+                f"[dim]Note: Automated cleanup active (kept latest 3 runs)[/dim]",
                 border_style="green",
                 title="Training Success",
             )
         )
+        
+        # Cleanup old runs (keep latest 3)
+        cleanup_old_runs()
+        
     except FileNotFoundError as e:
         logger.error(f"FileNotFoundError: {e}", exc_info=True)
     except Exception as e:

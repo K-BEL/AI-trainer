@@ -4,6 +4,8 @@ import numpy as np
 from pathlib import Path
 from ultralytics import YOLO
 import torch
+import tempfile
+import os
 
 # --- UI Config ---
 st.set_page_config(
@@ -49,16 +51,40 @@ st.markdown("Upload an image to see your trained model in action.")
 # --- Sidebar ---
 st.sidebar.header("Model Configuration")
 
-# Scan for checkpoints
-run_dirs = list(Path("runs").rglob("weights/*.pt"))
-checkpoint_paths = [str(p) for p in run_dirs]
-checkpoint_paths.insert(0, "yolov8n.pt") # Preset
-
-selected_checkpoint = st.sidebar.selectbox(
-    "Select Model Checkpoint",
-    checkpoint_paths,
-    index=min(1, len(checkpoint_paths)-1) if len(checkpoint_paths) > 1 else 0
+# Model Source Selection
+model_source = st.sidebar.radio(
+    "Model Source",
+    ["Local Checkpoints", "Upload Model (.pt)"],
+    index=0
 )
+
+selected_checkpoint = None
+
+if model_source == "Local Checkpoints":
+    # Scan for checkpoints
+    run_dirs = list(Path("runs").rglob("weights/*.pt"))
+    checkpoint_paths = [str(p) for p in run_dirs]
+    checkpoint_paths.insert(0, "yolov8n.pt") # Preset
+    
+    selected_checkpoint = st.sidebar.selectbox(
+        "Select Model Checkpoint",
+        checkpoint_paths,
+        index=min(1, len(checkpoint_paths)-1) if len(checkpoint_paths) > 1 else 0
+    )
+else:
+    uploaded_model = st.sidebar.file_uploader(
+        "Upload a YOLO model", 
+        type=["pt"],
+        help="Upload a trained PyTorch model (.pt) file."
+    )
+    if uploaded_model:
+        # Create a temporary file to store the uploaded model
+        # We need a stable suffix so YOLO can identify it as a pt file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pt") as f:
+            f.write(uploaded_model.getbuffer())
+            selected_checkpoint = f.name
+    else:
+        st.sidebar.info("Please upload a .pt file.")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("Inference Settings")
@@ -161,8 +187,14 @@ if model:
 
     with tab2:
         st.subheader("Model Metadata")
+        
+        # Display name (clean up temp names)
+        display_name = selected_checkpoint
+        if "tmp" in display_name:
+            display_name = "Uploaded Model (Temporary)"
+            
         st.json({
-            "Checkpoint": selected_checkpoint,
+            "Checkpoint": display_name,
             "Classes": model.names,
             "Total Classes": len(model.names),
             "Task": model.task
