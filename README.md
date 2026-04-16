@@ -2,7 +2,7 @@
 
 Library to train and evaluate AI vision models with a unified CLI.
 
-![Live Demo Dashboard](docs/assets/demo.png)
+Live Demo Dashboard
 
 ## Requirements
 
@@ -121,13 +121,16 @@ siin-trainer eval --backend ultralytics --checkpoint /path/to/best.pt --data /pa
 ```
 
 ### Performance Example (Detection)
-| Metric | Value |
-| :--- | :--- |
-| **mAP50** | 0.7532 |
-| **mAP50-95** | 0.5217 |
-| **Precision** | 0.7461 |
-| **Recall** | 0.6483 |
+
+
+| Metric                | Value                |
+| --------------------- | -------------------- |
+| **mAP50**             | 0.7532               |
+| **mAP50-95**          | 0.5217               |
+| **Precision**         | 0.7461               |
+| **Recall**            | 0.6483               |
 | **Inference Latency** | ~16ms (Apple M4 Pro) |
+
 
 Evaluate a custom checkpoint with explicit backend type:
 
@@ -158,6 +161,7 @@ siin-trainer demo
 ```
 
 ### Features
+
 - **Real-time Inference**: Drag and drop images or use your camera.
 - **Visualization Tuning**: Thin out box lines and toggle labels/confidence scores for crowded scenes.
 - **Class Filtering**: Focus detections on specific categories.

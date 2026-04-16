@@ -1,0 +1,6 @@
+{
+  "backend": "ultralytics",
+  "best_checkpoint": "C:\\Users\\k.belhadj\\Desktop\\AI-trainer\\runs\\ultralytics\\run-20260416-161029\\weights\\best.pt",
+  "last_checkpoint": "C:\\Users\\k.belhadj\\Desktop\\AI-trainer\\runs\\ultralytics\\run-20260416-161029\\weights\\last.pt",
+  "run_dir": "C:\\Users\\k.belhadj\\Desktop\\AI-trainer\\runs\\ultralytics\\run-20260416-161029"
+}
