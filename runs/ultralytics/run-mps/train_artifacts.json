@@ -1,0 +1,6 @@
+{
+  "backend": "ultralytics",
+  "best_checkpoint": "/Users/kirihata/Desktop/AI-trainer/runs/ultralytics/run-20260416-222129/weights/best.pt",
+  "last_checkpoint": "/Users/kirihata/Desktop/AI-trainer/runs/ultralytics/run-20260416-222129/weights/last.pt",
+  "run_dir": "/Users/kirihata/Desktop/AI-trainer/runs/ultralytics/run-20260416-222129"
+}

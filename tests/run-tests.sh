@@ -33,11 +33,11 @@ echo "📦 Step 1: Training..."
 "$PYTHON_EXEC" -m siin_trainer.cli train-ultralytics \
     --data "$DATA_PATH" \
     --model "$MODEL" \
-    --device "cpu" \
-    --epochs 5 \
-    --batch 2 \
+    --device "mps" \
+    --epochs 50 \
+    --batch 32 \
     --img-size 640 \
-    --workers 2
+    --workers 8
 
 # 2. Evaluate model
 echo "📊 Step 2: Evaluating..."
