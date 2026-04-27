@@ -4,6 +4,8 @@ __pycache__/
 *$py.class
 
 tests/dataset/
+tests/dataset_hf/
+tests/dataset_eu_hf/
 # C extensions
 *.so
 

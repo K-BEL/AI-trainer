@@ -14,6 +14,7 @@ from .backend.cleanup import cleanup_old_runs
 from .backend.base import BackendError
 from .backend.registry import get_backend, registry
 from .backend.utils import create_run_dir, write_json
+from .models.ocr_wrapper import get_ocr_engine
 
 console = Console()
 
@@ -630,6 +631,118 @@ def evaluate_model(backend, custom_backend_type, checkpoint, data, split, model,
         logger.error(f"Backend error: {e}", exc_info=True)
     except Exception as e:
         logger.error(f"Unexpected error: {e}", exc_info=True)
+
+
+
+@main.command()
+@click.option("--repo-id", type=str, required=True, help="Hugging Face dataset repository ID (e.g. 'google/fleurs').")
+@click.option("--root", type=click.Path(file_okay=False), required=True, help="Root directory to save the dataset.")
+@click.option("--subset", type=str, required=False, help="Specific folder or file pattern to download (e.g. 'data/train/*').")
+@click.option("--limit", type=int, default=0, help="Limit the number of images to process during conversion.")
+def download_hf(repo_id, root, subset, limit):
+    """Downloads a dataset from Hugging Face Hub."""
+    from huggingface_hub import snapshot_download
+    from pathlib import Path
+    
+    root_path = Path(root)
+    root_path.mkdir(parents=True, exist_ok=True)
+    
+    try:
+        console.print(f"📡 [bold cyan]Downloading from Hugging Face:[/bold cyan] {repo_id}")
+        allow_patterns = subset if subset else "*"
+        
+        # 1. Try standard snapshot download first
+        path = snapshot_download(
+            repo_id=repo_id,
+            repo_type="dataset",
+            local_dir=root,
+            allow_patterns=allow_patterns
+        )
+        
+        # 2. Check if it needs conversion
+        if not (Path(path) / "data.yaml").exists() and not list(Path(path).rglob("data.yaml")):
+            # Check for ZIP files and unzip (common in HF datasets)
+            import zipfile
+            data_dir = Path(path) / "data"
+            if data_dir.exists():
+                for zip_path in data_dir.glob("*.zip"):
+                    console.print(f"📦 [cyan]Unzipping {zip_path.name}...[/cyan]")
+                    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                        zip_ref.extractall(path)
+
+            # Check for COCO annotations (Roboflow exports)
+            coco_json = Path(path) / "_annotations.coco.json"
+            if coco_json.exists():
+                console.print("📄 [bold yellow]COCO annotations found.[/bold yellow] Converting to YOLO...")
+                from .datasets.coco_to_yolo import convert_coco_json_to_yolo, generate_simple_data_yaml
+                convert_coco_json_to_yolo(coco_json, path, path, limit=limit)
+                generate_simple_data_yaml(path, ["license_plate"])
+            else:
+                console.print("📦 [bold yellow]YOLO config missing.[/bold yellow] Attempting HF Datasets conversion...")
+                from .datasets.hf_converter import convert_hf_to_yolo
+                convert_hf_to_yolo(repo_id, root, limit=limit)
+            
+        console.print(f"[bold green]✓[/bold green] Dataset ready: [cyan]{root}[/cyan]")
+    except Exception as e:
+        console.print(f"[bold red]Error downloading dataset:[/bold red] {e}")
+
+
+@main.command()
+@click.option("--checkpoint", type=click.Path(exists=True), required=True, help="Path to trained YOLO weights.")
+@click.option("--source", type=click.Path(exists=True), required=True, help="Path to image for extraction.")
+@click.option("--conf", type=float, default=0.25, help="Confidence threshold for detection.")
+def extract_plate_data(checkpoint, source, conf):
+    """Detects license plates and extracts text data using OCR."""
+    from ultralytics import YOLO
+    import cv2
+    import json
+    import numpy as np
+    
+    # 1. Load Model
+    try:
+        model = YOLO(checkpoint)
+    except Exception as e:
+        console.print(f"[bold red]Error loading model:[/bold red] {e}")
+        return
+
+    # 2. Initialize OCR
+    ocr = get_ocr_engine()
+    if not ocr:
+        console.print("[bold yellow]Warning:[/bold yellow] PaddleOCR not installed. Extraction will be detection-only.")
+
+    # 3. Predict
+    results = model.predict(source=source, conf=conf, verbose=False)
+    
+    img = cv2.imread(source)
+    all_detections = []
+
+    for res in results:
+        boxes = res.boxes
+        for box in boxes:
+            # Get box coordinates
+            b = box.xyxy[0].cpu().numpy().astype(int)
+            x1, y1, x2, y2 = b
+            
+            # Crop image for OCR
+            crop = img[y1:y2, x1:x2]
+            
+            data = {
+                "box": [float(x1), float(y1), float(x2), float(y2)],
+                "confidence": float(box.conf[0].item()),
+                "text": "N/A"
+            }
+            
+            # 4. Extract Text
+            if ocr and crop.size > 0:
+                ocr_results = ocr.extract(crop)
+                if ocr_results:
+                    data["text"] = " ".join([r["text"] for r in ocr_results])
+                    data["ocr_conf"] = float(np.mean([r["confidence"] for r in ocr_results]))
+
+            all_detections.append(data)
+
+    # Output Result
+    console.print(Panel(json.dumps(all_detections, indent=2), title="Extracted Plate Data", border_style="cyan"))
 
 
 @main.command()
